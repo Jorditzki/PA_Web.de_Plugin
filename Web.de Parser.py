@@ -4,9 +4,6 @@
 # Web.de Mail-App Parser
 # Malte Woischwill, BKI Flensburg K9
 #
-# Versionshistorie:
-# siehe *-versions.txt
-#
 from physical import *
 import SQLiteParser
 from System.Convert import IsDBNull
@@ -79,15 +76,26 @@ class web_de_parser(object):
             if mail["cc"].Value:
                 cc_parties.append(self.generate_party(mail["cc"], mail["date"]))
             new_mail = self.generate_mail(mail_folder, known_from_parties[mail["email_from"]], to_parties, mail["subject"], mail["textbody"],
-                                          mail["isUnread"], mail["date"],[], cc_parties, bcc_parties,
+                                          mail["isUnread"], mail["date"], cc_parties, bcc_parties,
                                           next((item["email"] for item in accounts if item["accountId"].Value == mail["account_id"].Value), None))
+            if mail["hasAttachments"].Value == 1:
+                for row in attachments:
+                    if row["mailId"].Value == mail["_id"].Value:
+                        att = Attachment()
+                        att.Filename.Value = row["name"].Value
+                        att.ContentType.Value = row["contentType"].Value
+                        for fs in ds.FileSystems:
+                            for node in fs.Search('/.*?/de.web.mobile.android.mail/app_attachments/.*?' + row["name"].Value):
+                                if node.Name.endswith(row["name"].Value) and node.Type == Data.Files.NodeType.File:
+                                    att.Data.SetValue(node.Data)
+                        new_mail.Attachments.Add(att)
             self.results.append(new_mail)
         print("### Gefundene Accounts: " + str(temp_len))
         print("### Gefundene Mails: " + str(len(self.results)-temp_len))
         return self.results
 
     def generate_mail(self, mail_folder, mail_from_party, mail_to_parties, mail_subject, mail_body, mail_status,
-                      mail_timestamp, mail_attachments, mail_cc_parties, mail_bcc_parties, mail_account):
+                      mail_timestamp, mail_cc_parties, mail_bcc_parties, mail_account):
         mail = Email()
         mail.Source.Value = self.APP_NAME
         mail.Deleted = DeletedState.Intact
@@ -101,11 +109,10 @@ class web_de_parser(object):
             mail.Body.SetValue(mail_body.Value)
         if not IsDBNull(mail_timestamp.Value):
             mail.TimeStamp.Value = TimeStamp.FromUnixTime(mail_timestamp.Value/1000)
-        mail.Attachments.AddRange(mail_attachments)
         mail.Cc.AddRange(mail_cc_parties)
         mail.Bcc.AddRange(mail_bcc_parties)
         if not IsDBNull(mail_status.Value):
-            mail.Status.Value = MessageStatus.Unread if mail_status else MessageStatus.Read
+            mail.Status.Value = MessageStatus.Unread if mail_status.Value == 1 else MessageStatus.Read
         if not IsDBNull(mail_account.Value):
             mail.Account.Value = mail_account.Value
         return mail
@@ -150,7 +157,6 @@ class web_de_parser(object):
             return None
         ts = timestamp.Value.replace("T", "-").replace("Z", "").replace(":", "-").split("-")
         return TimeStamp(DateTime(int(ts[0]), int(ts[1]), int(ts[2]), int(ts[3]), int(ts[4]), int(ts[5])), True)
-
 
     def __find_db(self, name):
         print('### suche nach ' + name + '-db]')
