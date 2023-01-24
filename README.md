@@ -7,4 +7,4 @@ Parses Databases of Web.de Android Mobile App for Cellebrite Physical Analyzer
 * Mail Attachments
 
 Disclaimer:
-Script is PreAlpha Level. Parsed Data should always be revised manually before court!
+Script is PreAlpha Level. Parsed Data should always be revised manually before use in court!
